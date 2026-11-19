@@ -13,7 +13,7 @@ src/core/                C++17 core, no GUI or filesystem requirement
   engine.*               Template fill and best-of-N with early exit
 src/wasm/api.cpp         C ABI for the browser: wb_init, wb_generate, wb_check
 web/                     Browser shell (index.html, app.mjs); no verification logic
-tests/test_core.cpp      Core tests (20 checks)
+tests/test_core.cpp      Core tests (29 checks)
 third_party/             Vendored tree-sitter runtime and Java grammar (MIT)
 ```
 
@@ -39,18 +39,25 @@ Then build:
 ```bash
 emcmake cmake -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release -DWB_WASM=ON -DWB_BUILD_TESTS=OFF
 cmake --build build-wasm -j
+node tests/wasm_smoke.mjs build-wasm/dist          # headless WASM smoke test (15 cases)
 python3 -m http.server -d build-wasm/dist 8080    # open http://localhost:8080
 ```
 
 The output in `build-wasm/dist/` is `wb.mjs`, `wb.wasm`, the web shell, and the catalog.
 
+For a smaller download, add `-DWB_OPTIMIZE_SIZE=ON` (compiles and links with `-Oz -flto`; about 20% smaller raw and 16% smaller gzipped than the default build (474 KB and 150 KB against 589 KB and 178 KB, measured on the current tree)). Use a separate build directory, such as `build-wasm-size`, so the speed-optimized build is kept.
+
 ### C ABI
 
 | Function | Returns |
 |---|---|
-| `wb_init(catalog_json)` | `1` on success, `0` on failure |
+| `wb_init(json, len)` | `1` on success, `0` on failure or when `len` exceeds 4 MiB |
 | `wb_generate(pattern_id, class_name)` | JSON: `{ok, source, rejections}` or `{ok:false, error}` |
-| `wb_check(source)` | JSON: `{ok, errors:[{line,type,missing}]}` |
+| `wb_check(src, len)` | JSON: `{ok, errors:[{line,type,missing}]}`, or `{ok:false, error:"input too large"}` over 4 MiB |
+
+Source text (`json`, `src`) is passed as a pointer and byte length in WASM heap memory: allocate
+with `_malloc`, write with `stringToUTF8`, and free with `_free`. Do not pass source text through
+`cwrap` string arguments. Every export catches exceptions and returns JSON instead.
 
 The returned string is in a buffer that the next call overwrites, so copy it right away.
 
@@ -74,9 +81,15 @@ weights are not bundled.
 
 ## Status
 
-- Done: native core, tests (20 checks), WASM build, browser demo, smoke-tested in headless Chrome.
+- Done: native core, tests (29 checks), WASM build, browser demo, smoke-tested in headless Chrome.
 - Not included: model weights and the sampler backend.
-- Limit: the verifier checks syntax and declared structure. It does not run `javac`. On desktop, you can run `javac` as a subprocess.
+- Verified means: the source parses with no errors, and each catalog requirement holds. A plain
+  name requires a type or method with that name somewhere in the file. A structured requirement
+  (for example `getInstance` in `Demo`, static, returning `Demo`) is checked against the members
+  declared by that type, including its static flag, return type and modifiers, and its
+  constructors must carry the required modifier.
+- Limit: the verifier checks syntax and declared structure. It does not check method bodies,
+  types or semantics, and it does not run `javac`. On desktop, you can run `javac` as a subprocess.
 
 ## License
 
