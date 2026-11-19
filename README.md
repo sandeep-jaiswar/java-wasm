@@ -76,6 +76,15 @@ target_link_libraries(my_app PRIVATE wb_core)
 
 ## Local model (native, optional)
 
+The default model is Qwen2.5-Coder-7B-Instruct (Q4_K_M GGUF, Apache 2.0, about 4.7 GB). Fetch it
+with a pinned SHA-256 check:
+
+```bash
+scripts/fetch-model.sh                 # into .deps/models (default)
+scripts/fetch-model.sh /path/to/models # or into another directory
+```
+
+
 `WB_LLM=ON` builds `wb_llm`, a llama.cpp wrapper for greedy text completion. It is native only;
 the WASM bundle does not include it. Weights are not bundled. Pass a GGUF file at run time:
 
