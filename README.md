@@ -27,7 +27,14 @@ ctest --test-dir build --output-on-failure
 
 ## Browser build (WebAssembly)
 
-Requires Emscripten (`emcc` on PATH; Ubuntu: `apt install emscripten`).
+Emscripten 3.1.6 is a project dependency. Install it once into `.deps/emsdk` (gitignored):
+
+```bash
+./scripts/setup-deps.sh
+source .deps/emsdk/emsdk_env.sh      # puts emcc on PATH for this shell
+```
+
+Then build:
 
 ```bash
 emcmake cmake -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release -DWB_WASM=ON -DWB_BUILD_TESTS=OFF
