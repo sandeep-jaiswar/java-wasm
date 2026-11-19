@@ -11,11 +11,14 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
 #include "catalog.hpp"
 #include "engine.hpp"
+#include "session.hpp"
+#include "symbols.hpp"
 #include "verify.hpp"
 
 #ifdef __EMSCRIPTEN__
@@ -111,6 +114,54 @@ WB_EXPORT const char* wb_check(const char* src, uint32_t len) {
             errors.push_back({{"line", e.line}, {"type", e.node_type}, {"missing", e.missing}});
         }
         return respond({{"ok", a.ok}, {"errors", errors}});
+    } catch (const std::exception& e) {
+        return respond(error_json(e.what()));
+    } catch (...) {
+        return respond(error_json("internal error"));
+    }
+}
+
+// Returns {"ok":true,"symbols":[...],"diagnostics":[...],"truncated":bool} for one source text.
+// Symbols: {kind,name,modifiers,start_byte,end_byte,line,column,parent,return_type,params}.
+// return_type is null for non-methods; params is [] for kinds without parameters.
+// Diagnostics: {start_byte,end_byte,line,column,message,missing}, capped at wb::kMaxDiagnostics.
+WB_EXPORT const char* wb_symbols(const char* src, uint32_t len) {
+    try {
+        if (!src) return respond(error_json("invalid argument"));
+        if (len > kMaxInputBytes) return respond(error_json("input too large"));
+        wb::Session session;
+        session.set_text(std::string(src, len));
+        const wb::Report report = session.analyze();
+
+        nlohmann::json symbols = nlohmann::json::array();
+        for (const auto& s : report.symbols) {
+            nlohmann::json item = {
+                {"kind", wb::symbol_kind_name(s.kind)},
+                {"name", s.name},
+                {"modifiers", s.modifiers},
+                {"start_byte", s.start_byte},
+                {"end_byte", s.end_byte},
+                {"line", s.line},
+                {"column", s.column},
+                {"parent", s.parent},
+                {"return_type", s.kind == wb::SymbolKind::Method ? nlohmann::json(s.return_type)
+                                                                 : nlohmann::json(nullptr)},
+                {"params", s.params}};
+            symbols.push_back(std::move(item));
+        }
+        nlohmann::json diagnostics = nlohmann::json::array();
+        for (const auto& d : report.diagnostics) {
+            diagnostics.push_back({{"start_byte", d.start_byte},
+                                   {"end_byte", d.end_byte},
+                                   {"line", d.line},
+                                   {"column", d.column},
+                                   {"message", d.message},
+                                   {"missing", d.missing}});
+        }
+        return respond({{"ok", true},
+                        {"symbols", symbols},
+                        {"diagnostics", diagnostics},
+                        {"truncated", report.truncated}});
     } catch (const std::exception& e) {
         return respond(error_json(e.what()));
     } catch (...) {

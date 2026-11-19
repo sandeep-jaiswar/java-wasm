@@ -32,7 +32,11 @@ FetchContent_MakeAvailable(nlohmann_json)
 set(WB_CORE_SOURCES
     src/core/catalog.cpp
     src/core/verify.cpp
-    src/core/engine.cpp)
+    src/core/engine.cpp
+    src/core/symbols.cpp
+    src/core/session.cpp
+    src/graph/graph.cpp
+    src/graph/trace.cpp)
 # Catalog::load reads a file; only native builds need it.
 if(NOT WB_WASM)
     list(APPEND WB_CORE_SOURCES src/core/catalog_file.cpp)
@@ -47,6 +51,14 @@ if(WB_BUILD_TESTS AND NOT WB_WASM)
     add_executable(test_core tests/test_core.cpp)
     target_link_libraries(test_core PRIVATE wb_core)
     add_test(NAME core COMMAND test_core ${CMAKE_SOURCE_DIR}/catalog/patterns.json)
+
+    add_executable(test_symbols tests/test_symbols.cpp)
+    target_link_libraries(test_symbols PRIVATE wb_core)
+    add_test(NAME symbols COMMAND test_symbols)
+    add_executable(test_graph tests/test_graph.cpp)
+    target_include_directories(test_graph PRIVATE src/graph)
+    target_link_libraries(test_graph PRIVATE wb_core)
+    add_test(NAME graph COMMAND test_graph)
 endif()
 
 # ---- browser bundle: wb.mjs + wb.wasm, served with web/ ---------------------
@@ -63,7 +75,7 @@ if(WB_WASM)
         set(WB_COMPILE_OPT -Oz -flto)
         target_compile_options(tree_sitter PRIVATE ${WB_COMPILE_OPT})
         target_compile_options(tree_sitter_java PRIVATE ${WB_COMPILE_OPT})
-        target_compile_options(wb_core PRIVATE ${WB_COMPILE_OPT})
+        target_compile_options(wb_core PRIVATE ${WB_COMPILE_OPT} -fexceptions)
     endif()
 
     add_executable(wb src/wasm/api.cpp)
@@ -83,7 +95,7 @@ if(WB_WASM)
         -sFILESYSTEM=0
         -sALLOW_MEMORY_GROWTH=1
         -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,stringToUTF8,lengthBytesUTF8,UTF8ToString
-        -sEXPORTED_FUNCTIONS=_wb_init,_wb_generate,_wb_check,_malloc,_free)
+        -sEXPORTED_FUNCTIONS=_wb_init,_wb_generate,_wb_check,_wb_symbols,_malloc,_free)
     set_target_properties(wb PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/dist)
 
     add_custom_command(TARGET wb POST_BUILD
