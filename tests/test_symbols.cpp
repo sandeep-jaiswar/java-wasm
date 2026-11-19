@@ -189,10 +189,56 @@ void test_edit_bounds() {
     CHECK(s.text() == "class A {}");
 }
 
+void test_type_text_and_imports() {
+    const std::string src =
+        "package com.example.app;\n"
+        "import java.util.List;\n"
+        "import static java.lang.Math.max;\n"
+        "import java.util.*; // wildcard\n"
+        "public class Cart {\n"
+        "    private List<Item> items, extra;\n"
+        "    public Map<String, Integer> counts;\n"
+        "    static final int N = 3;\n"
+        "    int[] sizes;\n"
+        "    int run() { return 0; }\n"
+        "}\n";
+    const auto r = report_of(src);
+    CHECK(r.diagnostics.empty());
+    CHECK(r.package == "com.example.app");
+    CHECK(r.imports.size() == 3);
+    if (r.imports.size() != 3) return;
+    CHECK((r.imports[0] == wb::Import{"java.util.List", 2}));
+    CHECK((r.imports[1] == wb::Import{"static java.lang.Math.max", 3}));
+    CHECK((r.imports[2] == wb::Import{"java.util.*", 4}));
+
+    // Symbols: Cart, items, extra, counts, N, sizes, run
+    CHECK(r.symbols.size() == 7);
+    if (r.symbols.size() != 7) return;
+    CHECK(r.symbols[0].type_text.empty());
+    CHECK(r.symbols[1].name == "items" && r.symbols[1].type_text == "List<Item>");
+    CHECK(r.symbols[2].name == "extra" && r.symbols[2].type_text == "List<Item>");
+    CHECK(r.symbols[3].name == "counts" && r.symbols[3].type_text == "Map<String,Integer>");
+    CHECK(r.symbols[4].name == "N" && r.symbols[4].type_text == "int");
+    CHECK(r.symbols[5].name == "sizes" && r.symbols[5].type_text == "int[]");
+    CHECK(r.symbols[6].kind == wb::SymbolKind::Method && r.symbols[6].type_text.empty());
+    CHECK(r.symbols[6].return_type == "int");
+
+    // Default package, no imports.
+    const auto plain = report_of("class A { int x; }\n");
+    CHECK(plain.package.empty());
+    CHECK(plain.imports.empty());
+    CHECK(plain.symbols.size() == 2 && plain.symbols[1].type_text == "int");
+
+    // A half-written import is reported as a diagnostic; extraction must not crash on it.
+    const auto broken = report_of("import java.util.\nclass B { String s; }\n");
+    CHECK(!broken.diagnostics.empty());
+}
+
 }  // namespace
 
 int main() {
     test_declarations();
+    test_type_text_and_imports();
     test_diagnostics();
     test_truncation();
     test_edit_bounds();

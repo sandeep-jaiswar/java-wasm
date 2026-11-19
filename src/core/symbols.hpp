@@ -29,8 +29,18 @@ struct Symbol {
     std::int32_t parent = -1;
     std::string return_type;             // methods only; empty otherwise
     std::vector<std::string> params;     // methods and constructors: parameter type text
+    std::string type_text;               // fields only: declared type as written, spaces removed
 
     bool operator==(const Symbol& o) const;
+};
+
+// One top-level import declaration. `text` is the name without the "import" keyword and the
+// semicolon, e.g. "java.util.List", "static java.lang.Math.max" or "java.util.*".
+struct Import {
+    std::string text;
+    std::uint32_t line = 0;  // 1-based
+
+    bool operator==(const Import& o) const;
 };
 
 struct Diagnostic {
@@ -50,6 +60,8 @@ constexpr std::size_t kMaxDiagnostics = 200;
 struct Report {
     std::vector<Diagnostic> diagnostics;
     std::vector<Symbol> symbols;
+    std::vector<Import> imports;  // top-level import declarations, in source order
+    std::string package;          // package name without spaces; empty for the default package
     bool truncated = false;
 };
 

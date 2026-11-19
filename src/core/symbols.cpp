@@ -129,6 +129,7 @@ void collect_symbols(TSNode root, std::string_view source, std::vector<Symbol>& 
         } else if (std::strcmp(type, "field_declaration") == 0) {
             // One symbol per declarator: "int a, b;" yields two fields sharing modifiers.
             const auto mods = modifiers_of(node, source);
+            const TSNode type_node = ts_node_child_by_field_name(node, "type", 4);
             const std::uint32_t n = ts_node_named_child_count(node);
             for (std::uint32_t i = 0; i < n; ++i) {
                 const TSNode d = ts_node_named_child(node, i);
@@ -139,6 +140,7 @@ void collect_symbols(TSNode root, std::string_view source, std::vector<Symbol>& 
                 s.kind = SymbolKind::Field;
                 s.name = text_of(name, source);
                 s.modifiers = mods;
+                if (!ts_node_is_null(type_node)) s.type_text = strip_space(text_of(type_node, source));
                 // Range covers the whole field declaration (modifiers and type included).
                 s.start_byte = ts_node_start_byte(node);
                 s.end_byte = ts_node_end_byte(node);
@@ -236,7 +238,11 @@ bool Symbol::operator==(const Symbol& o) const {
     return kind == o.kind && name == o.name && modifiers == o.modifiers &&
            start_byte == o.start_byte && end_byte == o.end_byte && line == o.line &&
            column == o.column && parent == o.parent && return_type == o.return_type &&
-           params == o.params;
+           params == o.params && type_text == o.type_text;
+}
+
+bool Import::operator==(const Import& o) const {
+    return text == o.text && line == o.line;
 }
 
 bool Diagnostic::operator==(const Diagnostic& o) const {
@@ -244,10 +250,52 @@ bool Diagnostic::operator==(const Diagnostic& o) const {
            column == o.column && message == o.message && missing == o.missing;
 }
 
+// "package a.b;" -> "a.b". Annotations on the package line are ignored.
+std::string package_of(TSNode decl, std::string_view source) {
+    const std::uint32_t n = ts_node_named_child_count(decl);
+    std::string name;
+    for (std::uint32_t i = 0; i < n; ++i) {
+        const TSNode c = ts_node_named_child(decl, i);
+        if (is(c, "scoped_identifier") || is(c, "identifier")) name = strip_space(text_of(c, source));
+    }
+    return name;
+}
+
+// "import static a.B.c;" -> "static a.B.c". Built from the children so comments are dropped.
+std::string import_text(TSNode decl, std::string_view source) {
+    std::string prefix;
+    std::string body;
+    const std::uint32_t n = ts_node_child_count(decl);
+    for (std::uint32_t i = 0; i < n; ++i) {
+        const TSNode c = ts_node_child(decl, i);
+        if (ts_node_is_named(c)) {
+            if (is(c, "line_comment") || is(c, "block_comment")) continue;
+            body += strip_space(text_of(c, source));
+        } else if (is(c, "static")) {
+            prefix = "static ";
+        } else if (is(c, ".") || is(c, "*")) {
+            body += ts_node_type(c);
+        }
+    }
+    return prefix + body;
+}
+
 Report extract_report(const TSTree* tree, std::string_view source) {
     Report report;
     if (!tree) return report;
     const TSNode root = ts_tree_root_node(tree);
+    const std::uint32_t top = ts_node_named_child_count(root);
+    for (std::uint32_t i = 0; i < top; ++i) {
+        const TSNode c = ts_node_named_child(root, i);
+        if (is(c, "package_declaration")) {
+            report.package = package_of(c, source);
+        } else if (is(c, "import_declaration")) {
+            Import imp;
+            imp.text = import_text(c, source);
+            imp.line = ts_node_start_point(c).row + 1;
+            report.imports.push_back(std::move(imp));
+        }
+    }
     collect_symbols(root, source, report.symbols);
     collect_diagnostics(root, source, report);
     return report;

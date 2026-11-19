@@ -121,9 +121,13 @@ WB_EXPORT const char* wb_check(const char* src, uint32_t len) {
     }
 }
 
-// Returns {"ok":true,"symbols":[...],"diagnostics":[...],"truncated":bool} for one source text.
-// Symbols: {kind,name,modifiers,start_byte,end_byte,line,column,parent,return_type,params}.
-// return_type is null for non-methods; params is [] for kinds without parameters.
+// Returns {"ok":true,"package":string,"imports":[...],"symbols":[...],"diagnostics":[...],
+// "truncated":bool} for one source text.
+// Symbols: {kind,name,modifiers,start_byte,end_byte,line,column,parent,return_type,params,type_text}.
+// return_type is null for non-methods; params is [] for kinds without parameters; type_text is the
+// declared type of a field, "" for other kinds.
+// Imports: {text,line} per top-level import ("java.util.List", "static java.lang.Math.max").
+// package is "" for the default package.
 // Diagnostics: {start_byte,end_byte,line,column,message,missing}, capped at wb::kMaxDiagnostics.
 WB_EXPORT const char* wb_symbols(const char* src, uint32_t len) {
     try {
@@ -146,7 +150,8 @@ WB_EXPORT const char* wb_symbols(const char* src, uint32_t len) {
                 {"parent", s.parent},
                 {"return_type", s.kind == wb::SymbolKind::Method ? nlohmann::json(s.return_type)
                                                                  : nlohmann::json(nullptr)},
-                {"params", s.params}};
+                {"params", s.params},
+                {"type_text", s.type_text}};
             symbols.push_back(std::move(item));
         }
         nlohmann::json diagnostics = nlohmann::json::array();
@@ -158,7 +163,13 @@ WB_EXPORT const char* wb_symbols(const char* src, uint32_t len) {
                                    {"message", d.message},
                                    {"missing", d.missing}});
         }
+        nlohmann::json imports = nlohmann::json::array();
+        for (const auto& imp : report.imports) {
+            imports.push_back({{"text", imp.text}, {"line", imp.line}});
+        }
         return respond({{"ok", true},
+                        {"package", report.package},
+                        {"imports", imports},
                         {"symbols", symbols},
                         {"diagnostics", diagnostics},
                         {"truncated", report.truncated}});
