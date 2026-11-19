@@ -137,6 +137,8 @@ std::unique_ptr<Model> Model::load(const std::string& gguf_path, const Options& 
 
     llama_context_params cparams = llama_context_default_params();
     cparams.n_ctx = static_cast<uint32_t>(opt.n_ctx);
+    // The whole prompt goes through one batch, so the batch must hold a full context.
+    cparams.n_batch = static_cast<uint32_t>(opt.n_ctx);
     cparams.n_threads = opt.n_threads;
     cparams.n_threads_batch = opt.n_threads;
     impl->ctx = llama_init_from_model(impl->model, cparams);
