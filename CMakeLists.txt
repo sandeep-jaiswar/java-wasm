@@ -35,6 +35,7 @@ set(WB_CORE_SOURCES
     src/core/engine.cpp
     src/core/symbols.cpp
     src/core/session.cpp
+    src/core/scaffold.cpp
     src/graph/graph.cpp
     src/graph/trace.cpp)
 # Catalog::load reads a file; only native builds need it.
@@ -59,6 +60,9 @@ if(WB_BUILD_TESTS AND NOT WB_WASM)
     target_include_directories(test_graph PRIVATE src/graph)
     target_link_libraries(test_graph PRIVATE wb_core)
     add_test(NAME graph COMMAND test_graph)
+    add_executable(test_scaffold tests/test_scaffold.cpp)
+    target_link_libraries(test_scaffold PRIVATE wb_core)
+    add_test(NAME scaffold COMMAND test_scaffold)
 endif()
 
 # ---- browser bundle: wb.mjs + wb.wasm, served with web/ ---------------------
