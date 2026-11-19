@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD 11)
 
 option(WB_BUILD_TESTS "Build the core tests" ON)
 option(WB_WASM "Build the browser bundle with Emscripten (run via emcmake)" OFF)
+option(WB_OPTIMIZE_SIZE "WASM only: optimize for size (-Oz -flto) instead of speed (-O2)" OFF)
 
 include(FetchContent)
 
@@ -28,10 +29,15 @@ set(JSON_Install OFF CACHE INTERNAL "")
 FetchContent_MakeAvailable(nlohmann_json)
 
 # ---- core library: no GUI, no filesystem requirement ----------------------
-add_library(wb_core STATIC
+set(WB_CORE_SOURCES
     src/core/catalog.cpp
     src/core/verify.cpp
     src/core/engine.cpp)
+# Catalog::load reads a file; only native builds need it.
+if(NOT WB_WASM)
+    list(APPEND WB_CORE_SOURCES src/core/catalog_file.cpp)
+endif()
+add_library(wb_core STATIC ${WB_CORE_SOURCES})
 target_include_directories(wb_core PUBLIC src/core)
 target_link_libraries(wb_core PUBLIC tree_sitter tree_sitter_java nlohmann_json::nlohmann_json)
 
@@ -48,19 +54,35 @@ if(WB_WASM)
     if(NOT EMSCRIPTEN)
         message(FATAL_ERROR "WB_WASM=ON needs the Emscripten toolchain: run through emcmake")
     endif()
+    # Size mode compiles and links with LTO so the core, the API and tree-sitter optimize together.
+    # Default mode keeps the previous behavior: Release compile flags, -O2 at link only.
+    set(WB_LINK_OPT -O2)
+    set(WB_COMPILE_OPT "")
+    if(WB_OPTIMIZE_SIZE)
+        set(WB_LINK_OPT -Oz -flto)
+        set(WB_COMPILE_OPT -Oz -flto)
+        target_compile_options(tree_sitter PRIVATE ${WB_COMPILE_OPT})
+        target_compile_options(tree_sitter_java PRIVATE ${WB_COMPILE_OPT})
+        target_compile_options(wb_core PRIVATE ${WB_COMPILE_OPT})
+    endif()
+
     add_executable(wb src/wasm/api.cpp)
     target_link_libraries(wb PRIVATE wb_core)
     set_target_properties(wb PROPERTIES SUFFIX ".mjs")
     target_compile_options(wb PRIVATE -fexceptions)
+    if(WB_OPTIMIZE_SIZE)
+        target_compile_options(wb PRIVATE ${WB_COMPILE_OPT})
+    endif()
     target_link_options(wb PRIVATE
-        -O2
+        ${WB_LINK_OPT}
         -fexceptions
         -sDISABLE_EXCEPTION_CATCHING=0
         -sMODULARIZE=1
         -sEXPORT_ES6=1
         -sENVIRONMENT=web
+        -sFILESYSTEM=0
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_RUNTIME_METHODS=cwrap,ccall
+        -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,stringToUTF8,lengthBytesUTF8,UTF8ToString
         -sEXPORTED_FUNCTIONS=_wb_init,_wb_generate,_wb_check,_malloc,_free)
     set_target_properties(wb PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/dist)
 

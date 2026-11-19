@@ -6,11 +6,16 @@
 #include <unordered_map>
 #include <vector>
 
+#include "verify.hpp"
+
 namespace wb {
 
+// Strings may contain {{Param}} placeholders. A plain method name in the catalog becomes a
+// MethodSpec with only `name` set.
 struct Requirements {
-    std::vector<std::string> types;    // may contain {{Param}} placeholders
-    std::vector<std::string> methods;  // literal names
+    std::vector<std::string> types;
+    std::vector<MethodSpec> methods;
+    std::vector<CtorSpec> constructors;
 };
 
 struct Pattern {
@@ -27,7 +32,8 @@ public:
     // Parses catalog JSON text. Throws std::runtime_error or nlohmann::json exceptions on bad input.
     static Catalog parse(std::string_view json);
 
-    // Reads a file and parses it. Throws std::runtime_error when the file cannot be read.
+    // Reads a file and parses it (defined in catalog_file.cpp, native builds only).
+    // Throws std::runtime_error when the file cannot be read.
     static Catalog load(const std::string& path);
 
     const std::vector<Pattern>& patterns() const { return patterns_; }

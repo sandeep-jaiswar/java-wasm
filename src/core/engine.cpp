@@ -61,6 +61,24 @@ GenerateResult generate(Verifier& verifier, const Pattern& pattern, const Params
     std::vector<std::string> required_types;
     for (const auto& t : pattern.requires.types) required_types.push_back(fill(t, params));
 
+    std::vector<MethodSpec> required_methods;
+    for (const auto& m : pattern.requires.methods) {
+        MethodSpec spec = m;
+        spec.name = fill(m.name, params);
+        spec.in = fill(m.in, params);
+        spec.returns = fill(m.returns, params);
+        spec.modifier = fill(m.modifier, params);
+        required_methods.push_back(std::move(spec));
+    }
+
+    std::vector<CtorSpec> required_ctors;
+    for (const auto& c : pattern.requires.constructors) {
+        CtorSpec spec = c;
+        spec.in = fill(c.in, params);
+        spec.modifier = fill(c.modifier, params);
+        required_ctors.push_back(std::move(spec));
+    }
+
     GenerateResult result;
     for (const auto& source : candidates) {
         const Analysis analysis = verifier.analyze(source);
@@ -70,7 +88,7 @@ GenerateResult generate(Verifier& verifier, const Pattern& pattern, const Params
             continue;
         }
         const auto problems =
-            check_requirements(analysis, required_types, pattern.requires.methods);
+            check_requirements(analysis, required_types, required_methods, required_ctors);
         if (!problems.empty()) {
             std::string joined;
             for (const auto& p : problems) joined += (joined.empty() ? "" : "; ") + p;

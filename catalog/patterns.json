@@ -10,7 +10,12 @@
       "template": "public final class {{Name}} {\n    private static {{Name}} instance;\n\n    private {{Name}}() {}\n\n    public static synchronized {{Name}} getInstance() {\n        if (instance == null) {\n            instance = new {{Name}}();\n        }\n        return instance;\n    }\n}\n",
       "requires": {
         "types": ["{{Name}}"],
-        "methods": ["getInstance"]
+        "methods": [
+          {"name": "getInstance", "in": "{{Name}}", "static": true, "returns": "{{Name}}"}
+        ],
+        "constructors": [
+          {"constructor": "{{Name}}", "modifier": "private"}
+        ]
       }
     },
     {
