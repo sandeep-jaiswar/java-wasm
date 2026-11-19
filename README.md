@@ -11,6 +11,7 @@ src/core/                C++17 core, no GUI or filesystem requirement
   catalog.*              Parses catalog JSON; O(1) lookup by id
   verify.*               tree-sitter Java verifier; one iterative O(n) pass
   engine.*               Template fill and best-of-N with early exit
+src/llm/                 Optional llama.cpp completion (native only, WB_LLM=ON)
 src/wasm/api.cpp         C ABI for the browser: wb_init, wb_generate, wb_check
 web/                     Browser shell (index.html, app.mjs); no verification logic
 tests/test_core.cpp      Core tests (29 checks)
@@ -73,16 +74,25 @@ FetchContent_MakeAvailable(java_wasm)
 target_link_libraries(my_app PRIVATE wb_core)
 ```
 
-## Adding a model
+## Local model (native, optional)
 
-`wb::generate` takes an optional `Sampler` that returns candidate Java sources. Every candidate
-goes through the same verifier as the templates. Plan: llama.cpp (MIT) with an MIT model. Model
-weights are not bundled.
+`WB_LLM=ON` builds `wb_llm`, a llama.cpp wrapper for greedy text completion. It is native only;
+the WASM bundle does not include it. Weights are not bundled. Pass a GGUF file at run time:
+
+```bash
+cmake -S . -B build-llm -DCMAKE_BUILD_TYPE=Release -DWB_LLM=ON \
+      -DWB_LLM_TEST_MODEL=/path/to/model.gguf
+cmake --build build-llm -j && ctest --test-dir build-llm --output-on-failure
+```
+
+Tested with Qwen2.5-Coder-1.5B-Instruct (Q4_K_M, CPU). `wb::generate` still takes a `Sampler`, and
+every candidate goes through the same verifier as the templates.
 
 ## Status
 
 - Done: native core, tests (29 checks), WASM build, browser demo, smoke-tested in headless Chrome.
-- Not included: model weights and the sampler backend.
+- Done: native llama.cpp module (`wb_llm`), smoke-tested with a real 1.5B GGUF.
+- Not included: model weights, and the WASM build of the model.
 - Verified means: the source parses with no errors, and each catalog requirement holds. A plain
   name requires a type or method with that name somewhere in the file. A structured requirement
   (for example `getInstance` in `Demo`, static, returning `Demo`) is checked against the members

@@ -8,6 +8,7 @@ set(CMAKE_C_STANDARD 11)
 option(WB_BUILD_TESTS "Build the core tests" ON)
 option(WB_WASM "Build the browser bundle with Emscripten (run via emcmake)" OFF)
 option(WB_OPTIMIZE_SIZE "WASM only: optimize for size (-Oz -flto) instead of speed (-O2)" OFF)
+option(WB_LLM "Native only: build the llama.cpp text-completion module (wb_llm)" OFF)
 
 include(FetchContent)
 
@@ -63,6 +64,36 @@ if(WB_BUILD_TESTS AND NOT WB_WASM)
     add_executable(test_scaffold tests/test_scaffold.cpp)
     target_link_libraries(test_scaffold PRIVATE wb_core)
     add_test(NAME scaffold COMMAND test_scaffold)
+endif()
+
+# ---- optional: llama.cpp text completion (MIT), native only ---------------
+# Off by default. The core and the WASM bundle do not depend on it. Model weights are not
+# bundled: pass a GGUF path at run time.
+if(WB_LLM)
+    if(WB_WASM)
+        message(FATAL_ERROR "WB_LLM is native only for now; the WASM build does not include it")
+    endif()
+    set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_COMMON OFF CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(llama
+        GIT_REPOSITORY https://github.com/ggml-org/llama.cpp.git
+        GIT_TAG        b12547)
+    FetchContent_MakeAvailable(llama)
+
+    add_library(wb_llm STATIC src/llm/llm.cpp)
+    target_include_directories(wb_llm PUBLIC src/llm)
+    target_link_libraries(wb_llm PUBLIC wb_core llama)
+
+    if(WB_BUILD_TESTS)
+        enable_testing()
+        add_executable(test_llm tests/test_llm.cpp)
+        target_link_libraries(test_llm PRIVATE wb_llm)
+        set(WB_LLM_TEST_MODEL "" CACHE FILEPATH "GGUF model for test_llm (test is skipped when empty)")
+        add_test(NAME llm COMMAND test_llm ${WB_LLM_TEST_MODEL})
+    endif()
 endif()
 
 # ---- browser bundle: wb.mjs + wb.wasm, served with web/ ---------------------
