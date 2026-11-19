@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>java-wasm</title>
+  <!-- Maps the bare specifier used by src/verify.mjs to the vendored WASM runtime. -->
+  <script type="importmap">
+    { "imports": { "web-tree-sitter": "./vendor/web-tree-sitter.js" } }
+  </script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; }
+    h1 { font-size: 1.5rem; }
+    fieldset { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 1rem; }
+    label { display: block; margin: .4rem 0 .2rem; font-size: .9rem; }
+    input, select, textarea { font: inherit; width: 100%; box-sizing: border-box; padding: .4rem; }
+    textarea { font-family: ui-monospace, monospace; min-height: 180px; }
+    button { font: inherit; padding: .45rem 1rem; margin-top: .6rem; cursor: pointer; }
+    pre { background: #f6f6f6; padding: .75rem; overflow: auto; border-radius: 6px; }
+    .ok { color: #0a7d32; font-weight: 600; }
+    .bad { color: #b00020; font-weight: 600; }
+    .muted { color: #666; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <h1>java-wasm</h1>
+  <p class="muted">Templates are verified in your browser with tree-sitter (WASM). No data leaves the page.</p>
+
+  <fieldset>
+    <legend>Generate a pattern</legend>
+    <label for="pattern">Pattern</label>
+    <select id="pattern"></select>
+    <label for="name">Class name (Java identifier)</label>
+    <input id="name" value="Demo">
+    <button id="generate">Generate and verify</button>
+    <div id="gen-status" class="muted"></div>
+    <pre id="gen-output"></pre>
+  </fieldset>
+
+  <fieldset>
+    <legend>Check your own Java</legend>
+    <label for="check-src">Java source</label>
+    <textarea id="check-src" spellcheck="false"></textarea>
+    <button id="check">Check syntax</button>
+    <div id="check-status" class="muted"></div>
+  </fieldset>
+
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>

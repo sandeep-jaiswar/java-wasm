@@ -1,0 +1,26 @@
+{
+  "name": "java-wasm",
+  "version": "0.1.0",
+  "description": "Verified Java design-pattern generation that runs in the browser and natively, with an MIT-licensed WASM verifier.",
+  "type": "module",
+  "license": "MIT",
+  "main": "src/engine.mjs",
+  "files": [
+    "src",
+    "catalog",
+    "web",
+    "scripts"
+  ],
+  "scripts": {
+    "test": "node test/run.mjs",
+    "build": "node scripts/build.mjs",
+    "serve": "npx --yes http-server dist -p 8080"
+  },
+  "dependencies": {
+    "tree-sitter-java": "0.23.5",
+    "web-tree-sitter": "0.27.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
