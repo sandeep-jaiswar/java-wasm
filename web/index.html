@@ -4,10 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>java-wasm</title>
-  <!-- Maps the bare specifier used by src/verify.mjs to the vendored WASM runtime. -->
-  <script type="importmap">
-    { "imports": { "web-tree-sitter": "./vendor/web-tree-sitter.js" } }
-  </script>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #1b1b1b; }
     h1 { font-size: 1.5rem; }
@@ -16,7 +12,7 @@
     input, select, textarea { font: inherit; width: 100%; box-sizing: border-box; padding: .4rem; }
     textarea { font-family: ui-monospace, monospace; min-height: 180px; }
     button { font: inherit; padding: .45rem 1rem; margin-top: .6rem; cursor: pointer; }
-    pre { background: #f6f6f6; padding: .75rem; overflow: auto; border-radius: 6px; }
+    pre { background: #f6f6f6; padding: .75rem; overflow: auto; border-radius: 6px; white-space: pre-wrap; }
     .ok { color: #0a7d32; font-weight: 600; }
     .bad { color: #b00020; font-weight: 600; }
     .muted { color: #666; font-size: .85rem; }
@@ -24,7 +20,7 @@
 </head>
 <body>
   <h1>java-wasm</h1>
-  <p class="muted">Templates are verified in your browser with tree-sitter (WASM). No data leaves the page.</p>
+  <p class="muted">Templates are verified in your browser by the C++ core (WebAssembly). No data leaves the page.</p>
 
   <fieldset>
     <legend>Generate a pattern</legend>

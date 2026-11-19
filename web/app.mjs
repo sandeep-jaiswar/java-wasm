@@ -1,47 +1,36 @@
-import { indexCatalog, generate } from './src/engine.mjs';
-import { analyze } from './src/verify.mjs';
-
-// Asset paths are relative to the page, so the bundle works from any static host.
-const opts = {
-  runtimeWasm: new URL('./vendor/web-tree-sitter.wasm', import.meta.url).href,
-  javaWasm: new URL('./vendor/tree-sitter-java.wasm', import.meta.url).href,
-};
-
-const catalog = await (await fetch(new URL('./catalog/patterns.json', import.meta.url))).json();
-const index = indexCatalog(catalog);
+// Browser shell: calls the C++ core compiled to WASM. No verification logic lives here.
+import createModule from './wb.mjs';
 
 const $ = (id) => document.getElementById(id);
 
-for (const p of catalog.patterns) {
-  $('pattern').append(new Option(p.name, p.id));
-}
+const Module = await createModule({ locateFile: (file) => new URL(file, import.meta.url).href });
+const init = Module.cwrap('wb_init', 'number', ['string']);
+const generate = Module.cwrap('wb_generate', 'string', ['string', 'string']);
+const check = Module.cwrap('wb_check', 'string', ['string']);
 
-const describeProblem = (r) =>
-  r.reason === 'syntax'
-    ? `syntax errors at line(s) ${r.details.map((e) => e.row).join(', ')}`
-    : `structure: ${r.details.join('; ')}`;
+const catalog = await (await fetch(new URL('./catalog/patterns.json', import.meta.url))).text();
+if (!init(catalog)) throw new Error('catalog failed to load');
 
-$('generate').addEventListener('click', async () => {
+// The WASM side returns a JSON string in a buffer it reuses; parse it right away.
+const catalogPatterns = JSON.parse(catalog).patterns;
+for (const p of catalogPatterns) $('pattern').append(new Option(p.name, p.id));
+
+$('generate').addEventListener('click', () => {
   const status = $('gen-status');
-  status.textContent = 'Verifying…';
-  $('gen-output').textContent = '';
-  try {
-    const result = await generate(index, $('pattern').value, { Name: $('name').value.trim() }, { opts });
-    if (result.ok) {
-      status.innerHTML = '<span class="ok">Verified</span>';
-      $('gen-output').textContent = result.source;
-    } else {
-      status.innerHTML = `<span class="bad">Rejected</span> ${result.rejected.map(describeProblem).join(' | ')}`;
-    }
-  } catch (err) {
-    status.innerHTML = `<span class="bad">Error</span> ${err.message}`;
+  const r = JSON.parse(generate($('pattern').value, $('name').value.trim()));
+  if (r.ok) {
+    status.innerHTML = '<span class="ok">Verified</span>';
+    $('gen-output').textContent = r.source;
+  } else {
+    $('gen-output').textContent = '';
+    const why = r.error ?? r.rejections.join(' | ');
+    status.innerHTML = `<span class="bad">Rejected</span> ${why}`;
   }
 });
 
-$('check').addEventListener('click', async () => {
-  const status = $('check-status');
-  const { ok, errors } = await analyze($('check-src').value, opts);
-  status.innerHTML = ok
+$('check').addEventListener('click', () => {
+  const r = JSON.parse(check($('check-src').value));
+  $('check-status').innerHTML = r.ok
     ? '<span class="ok">No syntax errors</span>'
-    : `<span class="bad">${errors.length} syntax error(s)</span> at line(s) ${errors.map((e) => e.row).join(', ')}`;
+    : `<span class="bad">${r.errors.length} syntax error(s)</span> at line(s) ${r.errors.map((e) => e.line).join(', ')}`;
 });
