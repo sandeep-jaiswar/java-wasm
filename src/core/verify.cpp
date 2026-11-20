@@ -6,6 +6,8 @@
 
 #include <tree_sitter/api.h>
 
+#include "ts_walk.hpp"
+
 extern "C" const TSLanguage* tree_sitter_java(void);
 
 namespace wb {
@@ -36,16 +38,12 @@ std::string strip_space(std::string s) {
 // Keyword modifiers ("public", "static", ...). Annotations are named nodes and are skipped.
 std::vector<std::string> modifiers_of(TSNode decl) {
     std::vector<std::string> out;
-    const std::uint32_t count = ts_node_child_count(decl);
-    for (std::uint32_t i = 0; i < count; ++i) {
-        const TSNode child = ts_node_child(decl, i);
-        if (std::strcmp(ts_node_type(child), "modifiers") != 0) continue;
-        const std::uint32_t n = ts_node_child_count(child);
-        for (std::uint32_t j = 0; j < n; ++j) {
-            const TSNode kw = ts_node_child(child, j);
+    for_each_child(decl, false, [&](TSNode child) {
+        if (std::strcmp(ts_node_type(child), "modifiers") != 0) return;
+        for_each_child(child, false, [&](TSNode kw) {
             if (!ts_node_is_named(kw)) out.emplace_back(ts_node_type(kw));
-        }
-    }
+        });
+    });
     return out;
 }
 
@@ -59,13 +57,11 @@ bool has_modifier(const std::vector<std::string>& mods, const std::string& kw) {
 // Collects members that are direct children of a type body. Nested type declarations are
 // visited separately by the main loop, so their members never leak into the outer type.
 void collect_members(TSNode body, TypeDecl& decl, std::string_view source) {
-    const std::uint32_t count = ts_node_child_count(body);
-    for (std::uint32_t i = 0; i < count; ++i) {
-        const TSNode child = ts_node_child(body, i);
+    for_each_child(body, false, [&](TSNode child) {
         const char* type = ts_node_type(child);
         if (std::strcmp(type, "method_declaration") == 0) {
             const TSNode name = ts_node_child_by_field_name(child, "name", 4);
-            if (ts_node_is_null(name)) continue;
+            if (ts_node_is_null(name)) return;
             MethodDecl m;
             m.name = node_text(name, source);
             const TSNode ret = ts_node_child_by_field_name(child, "type", 4);
@@ -77,7 +73,7 @@ void collect_members(TSNode body, TypeDecl& decl, std::string_view source) {
         } else if (std::strcmp(type, "enum_body_declarations") == 0) {
             collect_members(child, decl, source);
         }
-    }
+    });
 }
 
 std::string describe_in(const std::string& type) {
@@ -105,31 +101,11 @@ std::vector<std::string> method_violations(const MethodSpec& spec, const MethodD
     return out;
 }
 
-}  // namespace
-
-Verifier::Verifier() {
-    parser_ = ts_parser_new();
-    if (!ts_parser_set_language(parser_, tree_sitter_java())) {
-        ts_parser_delete(parser_);
-        throw std::runtime_error("tree-sitter Java language ABI mismatch");
-    }
-}
-
-Verifier::~Verifier() {
-    ts_parser_delete(parser_);
-}
-
-Analysis Verifier::analyze(std::string_view source) {
-    Analysis result;
-    TSTree* tree = ts_parser_parse_string(parser_, nullptr, source.data(),
-                                          static_cast<std::uint32_t>(source.size()));
-    if (!tree) return result;
-
-    // Explicit stack instead of recursion: no depth limit on deeply nested input.
-    std::vector<TSNode> stack{ts_tree_root_node(tree)};
-    while (!stack.empty()) {
-        const TSNode node = stack.back();
-        stack.pop_back();
+// Records syntax errors, type declarations and method names. Pre-order over the whole tree.
+void walk_declarations(TSTree* tree, std::string_view source, Analysis& result) {
+    ScopedCursor cursor(ts_tree_root_node(tree));
+    do {
+        const TSNode node = ts_tree_cursor_current_node(cursor.get());
         const char* type = ts_node_type(node);
         const bool missing = ts_node_is_missing(node);
 
@@ -153,12 +129,31 @@ Analysis Verifier::analyze(std::string_view source) {
             const TSNode name = ts_node_child_by_field_name(node, "name", 4);
             if (!ts_node_is_null(name)) result.methods.insert(node_text(name, source));
         }
+    } while (advance_preorder(cursor.get()));
+}
 
-        // Push children in reverse so they pop in source order.
-        for (std::uint32_t i = ts_node_child_count(node); i-- > 0;) {
-            stack.push_back(ts_node_child(node, i));
-        }
+}  // namespace
+
+Verifier::Verifier() {
+    parser_ = ts_parser_new();
+    if (!ts_parser_set_language(parser_, tree_sitter_java())) {
+        ts_parser_delete(parser_);
+        throw std::runtime_error("tree-sitter Java language ABI mismatch");
     }
+}
+
+Verifier::~Verifier() {
+    ts_parser_delete(parser_);
+}
+
+Analysis Verifier::analyze(std::string_view source) {
+    Analysis result;
+    TSTree* tree = ts_parser_parse_string(parser_, nullptr, source.data(),
+                                          static_cast<std::uint32_t>(source.size()));
+    if (!tree) return result;
+
+    // Pre-order cursor walk: no recursion (no depth limit on deeply nested input) and no stack.
+    walk_declarations(tree, source, result);
     ts_tree_delete(tree);
 
     result.ok = result.errors.empty();

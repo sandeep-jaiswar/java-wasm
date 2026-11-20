@@ -32,7 +32,7 @@ private:
     friend class Graph;
     // Shallow top-level merge: each key in the patch replaces that key. Nothing
     // is deep-merged. A JSON null value is stored as null (the key is kept).
-    void apply(const std::map<std::string, nlohmann::json>& patch);
+    void apply(std::map<std::string, nlohmann::json>&& patch);
 
     std::map<std::string, std::shared_ptr<const nlohmann::json>> entries_;
 };

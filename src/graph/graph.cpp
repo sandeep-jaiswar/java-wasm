@@ -17,9 +17,10 @@ void State::set(std::string key, nlohmann::json value) {
     entries_[std::move(key)] = std::make_shared<const nlohmann::json>(std::move(value));
 }
 
-void State::apply(const std::map<std::string, nlohmann::json>& patch) {
-    for (const auto& [key, value] : patch) {
-        entries_[key] = std::make_shared<const nlohmann::json>(value);
+void State::apply(std::map<std::string, nlohmann::json>&& patch) {
+    // Values are moved in: the patch is a temporary, so each JSON tree is copied zero times here.
+    for (auto& [key, value] : patch) {
+        entries_[key] = std::make_shared<const nlohmann::json>(std::move(value));
     }
 }
 
@@ -112,7 +113,7 @@ Result Graph::run(State initial, const Options& options) const {
         const std::int64_t started = monotonic_ns();
         try {
             Patch patch = node->second(r.state, r.trace);
-            r.state.apply(patch);
+            r.state.apply(std::move(patch));
         } catch (const std::exception& e) {
             stop(r, Status::failed, current, step, e.what());
             return r;
