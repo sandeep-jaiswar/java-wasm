@@ -1,11 +1,12 @@
-// Native smoke test for the llama.cpp module. Usage: test_llm <model.gguf>
+// Native smoke test for the llama.cpp module. Usage: test_llm <model.gguf> [n_gpu_layers]
 // With no path (or an empty one) the model checks are skipped and the test passes, so the
-// suite stays green on machines without the weights.
+// suite stays green on machines without the weights. n_gpu_layers defaults to 0 (CPU only).
 
 #include <algorithm>
 #include <cctype>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #include "llm.hpp"
@@ -39,6 +40,7 @@ int main(int argc, char** argv) {
 
     wb::llm::Options opt;
     opt.max_new_tokens = 32;
+    if (argc > 2) opt.n_gpu_layers = std::atoi(argv[2]);
     auto model = wb::llm::Model::load(argv[1], opt, &error);
     check(model != nullptr, "load model");
     if (!model) {

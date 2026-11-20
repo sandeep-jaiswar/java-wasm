@@ -97,6 +97,11 @@ cmake --build build-llm -j && ctest --test-dir build-llm --output-on-failure
 Tested with Qwen2.5-Coder-1.5B-Instruct (Q4_K_M, CPU). `wb::generate` still takes a `Sampler`, and
 every candidate goes through the same verifier as the templates.
 
+GPU offload (optional) needs the CUDA toolkit (nvcc). Add `-DWB_LLM_CUDA=ON`, then pass the layer
+count as the second argument of `test_llm`. Measured on a GTX 1650 Max-Q (4 GB), 7B Q4_K_M, short
+reply, warm cache: CPU 1918 ms; 10 layers 1436 ms; 20 layers 934 ms; 28 layers out of memory. Use
+about 20 layers for the 7B model on a 4 GB card. `Options::n_gpu_layers` sets the same thing in code.
+
 ## Status
 
 - Done: native core, tests (29 checks), WASM build, browser demo, smoke-tested in headless Chrome.
