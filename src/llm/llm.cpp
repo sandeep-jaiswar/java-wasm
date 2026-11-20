@@ -128,7 +128,7 @@ std::unique_ptr<Model> Model::load(const std::string& gguf_path, const Options& 
     impl->opt = opt;
 
     llama_model_params mparams = llama_model_default_params();
-    mparams.n_gpu_layers = 0;  // CPU only for now
+    mparams.n_gpu_layers = opt.n_gpu_layers;
     impl->model = llama_model_load_from_file(gguf_path.c_str(), mparams);
     if (!impl->model) {
         set_error(error, "could not load model: " + gguf_path);

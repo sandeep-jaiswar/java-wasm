@@ -78,9 +78,13 @@ if(WB_LLM)
     set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_COMMON OFF CACHE BOOL "" FORCE)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    # GPU offload needs the CUDA toolkit (nvcc). Off by default so CPU-only machines build.
+    option(WB_LLM_CUDA "llama.cpp with CUDA (needs nvcc)" OFF)
+    set(GGML_CUDA ${WB_LLM_CUDA} CACHE BOOL "" FORCE)
+    # Pinned to the commit behind tag b12547. A commit hash cannot be moved, unlike a tag.
     FetchContent_Declare(llama
         GIT_REPOSITORY https://github.com/ggml-org/llama.cpp.git
-        GIT_TAG        b12547)
+        GIT_TAG        4db8b7638f2fa2e5c092ee05d49999b56e8167c3)
     FetchContent_MakeAvailable(llama)
 
     add_library(wb_llm STATIC src/llm/llm.cpp)

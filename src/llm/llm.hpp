@@ -12,6 +12,7 @@ struct Options {
     int n_ctx = 2048;          // prompt + generated tokens must fit in this window
     int n_threads = 4;         // CPU threads for generation
     int max_new_tokens = 256;  // hard cap on generated tokens per call
+    int n_gpu_layers = 0;      // layers offloaded to the GPU (0 = CPU only; needs a CUDA build)
 };
 
 class Model {
